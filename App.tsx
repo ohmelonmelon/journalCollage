@@ -5,10 +5,21 @@ import Sidebar from './components/Sidebar';
 import Canvas from './components/Canvas';
 import ZoomToolbar from './components/ZoomToolbar';
 import { injectPrintStyles } from './utils/printUtils';
+import { useHistory } from './hooks/useHistory';
 
 const App: React.FC = () => {
   const [currentPreset, setCurrentPreset] = useState<PresetConfig>(DEFAULT_PRESET);
-  const [photos, setPhotos] = useState<Map<string, PhotoData>>(new Map());
+  
+  // Use history hook for photos state
+  const {
+    state: photos,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    pushState: setPhotos
+  } = useHistory<Map<string, PhotoData>>(new Map());
+
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [viewportScale, setViewportScale] = useState(1);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -43,67 +54,108 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [handleResize]);
 
-  // Handle Paste
-  useEffect(() => {
-    const handlePaste = async (e: ClipboardEvent) => {
-      if (!selectedCellId) return;
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf('image') !== -1) {
-          const file = items[i].getAsFile();
+  // Handle Paste (Global and Replace)
+  const processPaste = useCallback(async (clipboardItems: DataTransferItemList, targetCellId: string) => {
+      for (let i = 0; i < clipboardItems.length; i++) {
+        if (clipboardItems[i].type.indexOf('image') !== -1) {
+          const file = clipboardItems[i].getAsFile();
           if (file) {
-            // We need to trigger the loading logic similar to file input
-            // Create a temp object URL
             const url = URL.createObjectURL(file);
             const img = new Image();
             img.onload = () => {
-                // We need cell dimensions to auto-fit
-                // Since we don't have direct access to DOM here, we can roughly calculate 
-                // or just rely on the GridCell component to handle 'init' if we pass the file.
-                // However, passing just the file to state and letting GridCell effect handle it is safer.
-                
-                // Let's defer the "fitting" logic to the component via a state update 
-                // that passes the raw file.
-                
-                // Note: The GridCell needs to know it's a NEW file to recalibrate. 
-                // We can just pass the file object.
-                
-                // We need to calculate the fit here because GridCell logic is inside GridCell.
-                // But GridCell watches `photoData.imageUrl`. 
-                // So updating state here is fine. 
-                // The tricky part is 'No White Space' initial calculation needs rendered DOM size.
-                // Solution: We'll pass the file to a helper or just let GridCell detect a change in file/url 
-                // and run its internal logic.
-                
-                updatePhoto(selectedCellId, {
+                // Update photo with new file - this works for both empty and existing cells (Replace)
+                // We create a new Map to push to history
+                const newMap = new Map(photos);
+                const existing = newMap.get(targetCellId) || {
+                    id: targetCellId,
+                    file: null,
+                    imageUrl: null,
+                    x: 0, 
+                    y: 0,
+                    scale: 1,
+                    nativeWidth: 0,
+                    nativeHeight: 0
+                };
+
+                newMap.set(targetCellId, {
+                    ...existing,
                     file,
                     imageUrl: url,
                     nativeWidth: img.naturalWidth,
                     nativeHeight: img.naturalHeight,
-                    // Reset transform data so GridCell knows to re-calc
-                    scale: 0, 
-                    x: 0, 
-                    y: 0 
+                    scale: 0, // Reset scale to trigger auto-fit logic in GridCell/Update
+                    x: 0,
+                    y: 0
                 });
+                
+                setPhotos(newMap);
             };
             img.src = url;
           }
           break; // Only take first image
         }
       }
+  }, [photos, setPhotos]);
+
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (!selectedCellId) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      await processPaste(items, selectedCellId);
     };
 
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
-  }, [selectedCellId]);
+  }, [selectedCellId, processPaste]);
+
+  // Helper for manual paste button in toolbar
+  const handleManualPaste = async (targetId: string) => {
+      try {
+          // Check permission or try reading directly
+          const clipboardItems = await navigator.clipboard.read();
+          for (const item of clipboardItems) {
+               // We need to convert ClipboardItem to DataTransfer-like interface or handle Blob directly
+               // navigator.clipboard.read() returns Blob types.
+               const imageType = item.types.find(type => type.startsWith('image/'));
+               if (imageType) {
+                   const blob = await item.getType(imageType);
+                   const file = new File([blob], "pasted-image", { type: imageType });
+                   
+                   // Re-use image loading logic
+                    const url = URL.createObjectURL(file);
+                    const img = new Image();
+                    img.onload = () => {
+                        const newMap = new Map(photos);
+                        const existing = newMap.get(targetId) || { id: targetId } as PhotoData; // partial cast for simplicity
+                        newMap.set(targetId, {
+                            ...existing,
+                            id: targetId,
+                            file,
+                            imageUrl: url,
+                            nativeWidth: img.naturalWidth,
+                            nativeHeight: img.naturalHeight,
+                            scale: 0,
+                            x: 0, 
+                            y: 0
+                        } as PhotoData);
+                        setPhotos(newMap);
+                    };
+                    img.src = url;
+                   return;
+               }
+          }
+          alert("剪贴板中没有图片 / No image in clipboard");
+      } catch (e) {
+          console.error(e);
+          alert("无法访问剪贴板，请确保已授权或使用 Ctrl+V / Cannot access clipboard, try Ctrl+V");
+      }
+  };
 
 
   const updatePhoto = (id: string, updates: Partial<PhotoData>) => {
-    setPhotos(prev => {
-      const newMap = new Map<string, PhotoData>(prev);
+      // Create a new history entry
+      const newMap = new Map(photos);
       const existing: PhotoData = newMap.get(id) || {
         id,
         file: null,
@@ -115,14 +167,16 @@ const App: React.FC = () => {
         nativeHeight: 0
       };
       
-      // If scale is 0 (signal from paste/load), we expect the component 
-      // to handle the actual calculation, but we need to store the raw data first.
-      // Wait, GridCell calculates inside `loadImage`. 
-      // If we paste, we are simulating a load.
+      // Optimization: If dragging (frequent updates), usually we might want to debounce history push
+      // But for simplicity in this requested task, we push state. 
+      // To prevent history spamming during drag, 'GridCell' updates could be local state 
+      // and 'onUpdate' (this function) only called on mouseUp.
+      // However, the current architecture calls onUpdate during drag. 
+      // For a robust undo/redo, we should assume the user might want to undo a specific move.
+      // If performance is an issue, we can debounce, but for now strict state management:
       
       newMap.set(id, { ...existing, ...updates });
-      return newMap;
-    });
+      setPhotos(newMap);
   };
 
   const handleClear = () => {
@@ -133,22 +187,16 @@ const App: React.FC = () => {
   };
 
   const handlePrint = () => {
-    // Deselect cell to hide handles
     setSelectedCellId(null);
-    
-    // Small timeout to allow state to settle/UI to update
     setTimeout(() => {
         window.print();
     }, 100);
   };
 
-  // Get selected photo data for toolbar
   const selectedPhoto = selectedCellId ? photos.get(selectedCellId) : undefined;
   
-  // Calculate selected cell dimensions in PX for the toolbar to use for "Reset" logic
-  // (Approximate is fine for the toolbar logic)
   const cellDim = {
-      width: currentPreset.cellWidthMm * 3.78, // Rough conversion for logic
+      width: currentPreset.cellWidthMm * 3.78,
       height: currentPreset.cellHeightMm * 3.78
   };
 
@@ -158,28 +206,31 @@ const App: React.FC = () => {
         currentPreset={currentPreset}
         onPresetChange={(p) => {
             setCurrentPreset(p);
-            setPhotos(new Map()); // Clear on preset change to avoid layout mismatch
+            setPhotos(new Map());
             setSelectedCellId(null);
         }}
         photoCount={Array.from(photos.values()).filter((p: PhotoData) => p.imageUrl).length}
         onClear={handleClear}
         onPrint={handlePrint}
+        undo={undo}
+        redo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <main 
         className="flex-1 relative flex flex-col items-center justify-center bg-gray-100/50"
-        onClick={() => setSelectedCellId(null)} // Deselect when clicking background
+        onClick={() => setSelectedCellId(null)}
       >
-        {/* Floating Zoom Toolbar */}
         {selectedCellId && selectedPhoto?.imageUrl && (
             <ZoomToolbar 
                 photoData={selectedPhoto} 
                 onUpdate={updatePhoto} 
                 cellDimensions={cellDim}
+                onReplace={() => handleManualPaste(selectedCellId)}
             />
         )}
 
-        {/* Scrollable Canvas Area */}
         <div 
             ref={canvasContainerRef}
             className="w-full h-full overflow-auto flex items-center justify-center p-10 custom-scrollbar"

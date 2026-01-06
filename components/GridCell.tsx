@@ -78,7 +78,6 @@ const GridCell: React.FC<GridCellProps> = ({
     onSelect(id);
     
     if (!photoData?.imageUrl) {
-        // Do not auto-open upload dialog anymore
         return;
     }
 
@@ -240,24 +239,28 @@ const GridCell: React.FC<GridCellProps> = ({
       ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 transition-colors gap-2">
             <div className="flex gap-2">
+                 {/* Swap order: Paste is primary default */}
+                 <button 
+                    onClick={handlePasteClick}
+                    className="flex flex-col items-center p-3 rounded-lg hover:bg-indigo-50 text-indigo-400 hover:text-indigo-600 transition-colors border border-transparent hover:border-indigo-100"
+                    title="粘贴图片"
+                 >
+                    <Clipboard className="w-6 h-6 mb-1" />
+                    <span className="text-xs font-bold">粘贴</span>
+                 </button>
+                 
+                 <div className="w-px h-8 bg-gray-100 my-auto"></div>
+
                  <button 
                     onClick={handleUploadClick}
-                    className="flex flex-col items-center p-2 rounded hover:bg-gray-50 text-gray-400 hover:text-indigo-500 transition-colors"
+                    className="flex flex-col items-center p-3 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-gray-600 transition-colors"
                     title="上传图片"
                  >
                     <Upload className="w-5 h-5 mb-1" />
                     <span className="text-[10px] font-medium">上传</span>
                  </button>
-                 <button 
-                    onClick={handlePasteClick}
-                    className="flex flex-col items-center p-2 rounded hover:bg-gray-50 text-gray-400 hover:text-indigo-500 transition-colors"
-                    title="粘贴图片"
-                 >
-                    <Clipboard className="w-5 h-5 mb-1" />
-                    <span className="text-[10px] font-medium">粘贴</span>
-                 </button>
             </div>
-            <span className="text-[10px] opacity-40">支持 Ctrl+V</span>
+            <span className="text-[9px] opacity-40 uppercase tracking-wider font-mono">Select & Ctrl+V</span>
         </div>
       )}
       

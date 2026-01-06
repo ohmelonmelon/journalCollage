@@ -1,14 +1,15 @@
 import React from 'react';
 import { PhotoData } from '../types';
-import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { RotateCcw, ZoomIn, ZoomOut, ClipboardPaste } from 'lucide-react';
 
 interface ZoomToolbarProps {
   photoData: PhotoData | undefined;
   onUpdate: (id: string, updates: Partial<PhotoData>) => void;
   cellDimensions: { width: number; height: number };
+  onReplace: () => void;
 }
 
-const ZoomToolbar: React.FC<ZoomToolbarProps> = ({ photoData, onUpdate, cellDimensions }) => {
+const ZoomToolbar: React.FC<ZoomToolbarProps> = ({ photoData, onUpdate, cellDimensions, onReplace }) => {
   if (!photoData || !photoData.imageUrl) return null;
 
   const currentScale = photoData.scale;
@@ -21,17 +22,12 @@ const ZoomToolbar: React.FC<ZoomToolbarProps> = ({ photoData, onUpdate, cellDime
 
   const percentage = Math.round((currentScale / minScale) * 100);
 
-  const handleZoom = (direction: 'in' | 'out') => {
-    const step = 0.1 * minScale;
-    let newScale = direction === 'in' ? currentScale + step : currentScale - step;
-    
-    // Clamp logic (duplicated from GridCell logic mostly)
+  const updateScale = (newScale: number) => {
+    // Clamp logic
     if (newScale < minScale) newScale = minScale;
     if (newScale > 5) newScale = 5;
 
     // Recalculate position to keep centered-ish if possible, or just clamp
-    // For simplicity here, we keep the center point relative to the viewport stationary
-    // But basic clamping is safer to prevent bugs
     const imgW = photoData.nativeWidth;
     const imgH = photoData.nativeHeight;
     const cellW = cellDimensions.width;
@@ -50,6 +46,11 @@ const ZoomToolbar: React.FC<ZoomToolbarProps> = ({ photoData, onUpdate, cellDime
     if (newY > 0) newY = 0;
 
     onUpdate(photoData.id, { scale: newScale, x: newX, y: newY });
+  }
+
+  const handleZoomBtn = (direction: 'in' | 'out') => {
+    const step = 0.1 * minScale;
+    updateScale(direction === 'in' ? currentScale + step : currentScale - step);
   };
 
   const handleReset = () => {
@@ -67,38 +68,63 @@ const ZoomToolbar: React.FC<ZoomToolbarProps> = ({ photoData, onUpdate, cellDime
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur shadow-md rounded-full px-4 py-2 flex items-center gap-4 border border-gray-200 z-50 transition-all duration-300 animate-in fade-in slide-in-from-top-4 no-print">
-      <div className="flex items-center gap-2">
-        <button 
-          onClick={() => handleZoom('out')}
-          className="p-1 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
-          title="缩小"
-        >
-          <ZoomOut size={16} />
-        </button>
-        
-        <span className="text-xs font-mono w-12 text-center text-gray-700 select-none">
-            {percentage}%
-        </span>
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur shadow-lg rounded-2xl px-4 py-3 flex flex-col gap-3 border border-gray-200 z-50 transition-all duration-300 animate-in fade-in slide-in-from-top-4 no-print min-w-[280px]">
+      
+      {/* Top Row: Buttons */}
+      <div className="flex items-center justify-between w-full">
+         <div className="flex items-center gap-2">
+            <button 
+                onClick={() => handleZoomBtn('out')}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
+                title="缩小"
+            >
+                <ZoomOut size={16} />
+            </button>
+            <span className="text-xs font-mono font-medium text-gray-700 select-none w-10 text-center">
+                {percentage}%
+            </span>
+            <button 
+                onClick={() => handleZoomBtn('in')}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
+                title="放大"
+            >
+                <ZoomIn size={16} />
+            </button>
+         </div>
 
-        <button 
-          onClick={() => handleZoom('in')}
-          className="p-1 hover:bg-gray-100 rounded-full text-gray-600 transition-colors"
-          title="放大"
-        >
-          <ZoomIn size={16} />
-        </button>
+         <div className="w-px h-4 bg-gray-200 mx-2" />
+
+         <div className="flex items-center gap-2">
+            <button 
+                onClick={handleReset}
+                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                title="重置位置和大小"
+            >
+                <RotateCcw size={16} />
+            </button>
+            <button 
+                onClick={onReplace}
+                className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-medium transition-colors"
+                title="粘贴新图片替换当前图片"
+            >
+                <ClipboardPaste size={14} />
+                <span>替换</span>
+            </button>
+         </div>
       </div>
 
-      <div className="w-px h-4 bg-gray-300" />
-
-      <button 
-        onClick={handleReset}
-        className="flex items-center gap-1 text-xs text-gray-600 hover:text-blue-600 transition-colors font-medium px-1"
-      >
-        <RotateCcw size={12} />
-        <span>重置</span>
-      </button>
+      {/* Bottom Row: Slider */}
+      <div className="w-full px-1">
+        <input 
+            type="range"
+            min={minScale}
+            max={5}
+            step={0.01}
+            value={currentScale}
+            onChange={(e) => updateScale(parseFloat(e.target.value))}
+            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+        />
+      </div>
     </div>
   );
 };

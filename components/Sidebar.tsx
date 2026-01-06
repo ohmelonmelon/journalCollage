@@ -1,7 +1,7 @@
 import React from 'react';
 import { PresetConfig } from '../types';
 import { PRESETS } from '../constants';
-import { Trash2, Download, Printer, LayoutGrid, Scissors, Move, MousePointerClick } from 'lucide-react';
+import { Trash2, Printer, LayoutGrid, Scissors, Move, MousePointerClick, Undo2, Redo2 } from 'lucide-react';
 
 interface SidebarProps {
   currentPreset: PresetConfig;
@@ -9,6 +9,10 @@ interface SidebarProps {
   photoCount: number;
   onClear: () => void;
   onPrint: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -16,17 +20,47 @@ const Sidebar: React.FC<SidebarProps> = ({
   onPresetChange,
   photoCount,
   onClear,
-  onPrint
+  onPrint,
+  undo,
+  redo,
+  canUndo,
+  canRedo
 }) => {
   return (
     <div className="w-80 bg-white border-r border-gray-200 h-screen flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.02)] z-20">
       {/* Header */}
       <div className="p-6 border-b border-gray-100">
-        <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2 tracking-tight">
-          <Scissors className="w-5 h-5 text-indigo-500" />
-          手账拼贴工具
-        </h1>
-        <p className="text-xs text-gray-400 mt-1 pl-7">Techo Collager</p>
+        <div className="flex justify-between items-start mb-4">
+            <div>
+                <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2 tracking-tight">
+                <Scissors className="w-5 h-5 text-indigo-500" />
+                手账拼贴工具
+                </h1>
+                <p className="text-xs text-gray-400 mt-1 pl-7">Techo Collager</p>
+            </div>
+        </div>
+        
+        {/* Undo/Redo Controls */}
+        <div className="flex gap-2">
+            <button 
+                onClick={undo}
+                disabled={!canUndo}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-gray-50 text-gray-600 rounded-lg text-sm border border-gray-200 transition-colors"
+                title="撤销 (Undo)"
+            >
+                <Undo2 size={16} />
+                撤销
+            </button>
+            <button 
+                onClick={redo}
+                disabled={!canRedo}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-gray-50 text-gray-600 rounded-lg text-sm border border-gray-200 transition-colors"
+                title="重做 (Redo)"
+            >
+                <Redo2 size={16} />
+                重做
+            </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -83,11 +117,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             <ul className="space-y-3 text-sm text-gray-500 bg-gray-50 p-4 rounded-lg border border-gray-100">
                 <li className="flex items-start gap-2.5">
                     <MousePointerClick size={14} className="mt-0.5 text-gray-400" />
-                    <span>点击格子选择或上传图片</span>
+                    <span>点击格子选择 (再次点击已选格子可粘贴替换)</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                     <kbd className="font-mono text-xs bg-white border px-1 rounded text-gray-600 shadow-sm">Ctrl+V</kbd>
-                    <span>选中格子后粘贴剪贴板图片</span>
+                    <span>粘贴剪贴板图片</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                     <Move size={14} className="mt-0.5 text-gray-400" />
