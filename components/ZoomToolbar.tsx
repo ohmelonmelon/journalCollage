@@ -68,62 +68,63 @@ const ZoomToolbar: React.FC<ZoomToolbarProps> = ({ photoData, onUpdate, cellDime
   };
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/95 backdrop-blur shadow-lg rounded-2xl px-4 py-3 flex flex-col gap-3 border border-gray-200 z-50 transition-all duration-300 animate-in fade-in slide-in-from-top-4 no-print min-w-[280px]">
-      
-      {/* Top Row: Buttons */}
-      <div className="flex items-center justify-between w-full">
-         <div className="flex items-center gap-2">
-            <button 
-                onClick={() => handleZoomBtn('out')}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
-                title="缩小"
+    <div 
+        className="w-full h-full bg-white flex items-center justify-between px-6 animate-in fade-in slide-in-from-top-2 no-print"
+        onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-6 w-full max-w-4xl mx-auto">
+          {/* Left: Actions */}
+          <div className="flex items-center gap-2 border-r border-gray-200 pr-6">
+             <button 
+                onClick={onReplace}
+                className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md text-sm font-medium transition-colors"
+                title="粘贴新图片替换当前图片"
             >
-                <ZoomOut size={16} />
+                <ClipboardPaste size={16} />
+                <span>替换图片</span>
             </button>
-            <span className="text-xs font-mono font-medium text-gray-700 select-none w-10 text-center">
-                {percentage}%
-            </span>
-            <button 
-                onClick={() => handleZoomBtn('in')}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-600 transition-colors"
-                title="放大"
-            >
-                <ZoomIn size={16} />
-            </button>
-         </div>
-
-         <div className="w-px h-4 bg-gray-200 mx-2" />
-
-         <div className="flex items-center gap-2">
             <button 
                 onClick={handleReset}
-                className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-blue-600 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 text-gray-600 rounded-md text-sm font-medium transition-colors"
                 title="重置位置和大小"
             >
                 <RotateCcw size={16} />
+                <span className="hidden sm:inline">重置</span>
             </button>
-            <button 
-                onClick={onReplace}
-                className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-medium transition-colors"
-                title="粘贴新图片替换当前图片"
-            >
-                <ClipboardPaste size={14} />
-                <span>替换</span>
-            </button>
-         </div>
-      </div>
+          </div>
 
-      {/* Bottom Row: Slider */}
-      <div className="w-full px-1">
-        <input 
-            type="range"
-            min={minScale}
-            max={5}
-            step={0.01}
-            value={currentScale}
-            onChange={(e) => updateScale(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-        />
+          {/* Center: Zoom Controls */}
+          <div className="flex-1 flex items-center gap-4">
+             <button 
+                onClick={() => handleZoomBtn('out')}
+                className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-indigo-600 transition-colors"
+             >
+                <ZoomOut size={18} />
+             </button>
+             
+             <div className="flex-1 flex items-center gap-3">
+                 <input 
+                    type="range"
+                    min={minScale}
+                    max={5}
+                    step={0.01}
+                    value={currentScale}
+                    onChange={(e) => updateScale(parseFloat(e.target.value))}
+                    className="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                />
+             </div>
+
+             <button 
+                onClick={() => handleZoomBtn('in')}
+                className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-indigo-600 transition-colors"
+             >
+                <ZoomIn size={18} />
+             </button>
+             
+             <span className="text-sm font-mono font-medium text-gray-700 w-12 text-right">
+                {percentage}%
+             </span>
+          </div>
       </div>
     </div>
   );

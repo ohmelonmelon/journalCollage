@@ -24,13 +24,36 @@ const GridCell: React.FC<GridCellProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Calculate pixel dimensions based on mm (approximate for screen, exact for print via CSS)
-  const getRenderedDimensions = () => {
+  // Use clientWidth/Height for local coordinates. 
+  // getBoundingClientRect() is affected by parent transforms (zoom), which breaks internal offset calculations.
+  const getLocalDimensions = () => {
     if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      return { width: rect.width, height: rect.height };
+      return { 
+          width: containerRef.current.clientWidth, 
+          height: containerRef.current.clientHeight 
+      };
     }
     return { width: 0, height: 0 };
+  };
+
+  const calculateFit = (imgW: number, imgH: number) => {
+      const { width: cellW, height: cellH } = getLocalDimensions();
+      if (cellW === 0 || cellH === 0) return null;
+
+      // "No White Space" / Cover logic
+      const scaleX = cellW / imgW;
+      const scaleY = cellH / imgH;
+      // We must be at least this large to cover the hole
+      const initialScale = Math.max(scaleX, scaleY);
+
+      // Center the image
+      const renderedImgW = imgW * initialScale;
+      const renderedImgH = imgH * initialScale;
+      
+      const x = (cellW - renderedImgW) / 2;
+      const y = (cellH - renderedImgH) / 2;
+
+      return { scale: initialScale, x, y };
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,34 +67,43 @@ const GridCell: React.FC<GridCellProps> = ({
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const { width: cellW, height: cellH } = getRenderedDimensions();
       const imgW = img.naturalWidth;
       const imgH = img.naturalHeight;
 
-      // "No White Space" logic
-      const scaleX = cellW / imgW;
-      const scaleY = cellH / imgH;
-      const initialScale = Math.max(scaleX, scaleY);
-
-      // Center the image
-      const renderedImgW = imgW * initialScale;
-      const renderedImgH = imgH * initialScale;
+      const fit = calculateFit(imgW, imgH);
       
-      const x = (cellW - renderedImgW) / 2;
-      const y = (cellH - renderedImgH) / 2;
-
-      onUpdate(id, {
+      // If we can't calculate fit yet (e.g. not mounted), default to 0 and let effect handle it
+      // But typically loadImage happens after mount.
+      
+      const updates: Partial<PhotoData> = {
         file,
         imageUrl: url,
         nativeWidth: imgW,
         nativeHeight: imgH,
-        scale: initialScale,
-        x,
-        y
-      });
+      };
+
+      if (fit) {
+          updates.scale = fit.scale;
+          updates.x = fit.x;
+          updates.y = fit.y;
+      } else {
+          updates.scale = 0; // Trigger effect later
+      }
+
+      onUpdate(id, updates);
     };
     img.src = url;
   };
+
+  // Handle external initialization (e.g. Paste where scale is set to 0 initially)
+  useEffect(() => {
+      if (photoData?.imageUrl && photoData.nativeWidth && photoData.scale === 0) {
+          const fit = calculateFit(photoData.nativeWidth, photoData.nativeHeight);
+          if (fit) {
+              onUpdate(id, { scale: fit.scale, x: fit.x, y: fit.y });
+          }
+      }
+  }, [photoData, id, onUpdate]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -84,10 +116,13 @@ const GridCell: React.FC<GridCellProps> = ({
     setIsDragging(true);
     setDragStart({ x: e.clientX - (photoData.x || 0), y: e.clientY - (photoData.y || 0) });
   };
+  
+  const handleClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+  };
 
   const handleUploadClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Ensure cell is selected
     onSelect(id);
     fileInputRef.current?.click();
   };
@@ -98,7 +133,6 @@ const GridCell: React.FC<GridCellProps> = ({
     try {
         const clipboardItems = await navigator.clipboard.read();
         for (const item of clipboardItems) {
-            // Find image types
             const imageType = item.types.find(type => type.startsWith('image/'));
             if (imageType) {
                 const blob = await item.getType(imageType);
@@ -118,7 +152,7 @@ const GridCell: React.FC<GridCellProps> = ({
     if (!isSelected || !photoData?.imageUrl) return;
     e.preventDefault();
 
-    const { width: cellW, height: cellH } = getRenderedDimensions();
+    const { width: cellW, height: cellH } = getLocalDimensions();
     const currentScale = photoData.scale;
     const imgW = photoData.nativeWidth;
     const imgH = photoData.nativeHeight;
@@ -126,19 +160,25 @@ const GridCell: React.FC<GridCellProps> = ({
     const zoomFactor = -e.deltaY * 0.001;
     let newScale = currentScale + zoomFactor;
 
+    // Minimum scale is strictly the cover scale
     const minScale = Math.max(cellW / imgW, cellH / imgH);
     if (newScale < minScale) newScale = minScale;
+    // Cap max scale
     if (newScale > 5) newScale = 5;
 
+    // Recalculate clamps based on new scale
     let newX = photoData.x;
     let newY = photoData.y;
 
+    // Clamp Boundaries:
+    // Left edge (x) cannot be > 0 (otherwise left whitespace)
+    // Right edge (x + w) cannot be < cellW (otherwise right whitespace) -> x cannot be < cellW - w
     const minX = cellW - (imgW * newScale);
     const maxX = 0;
     const minY = cellH - (imgH * newScale);
     const maxY = 0;
 
-    // Center zoom adjustment could be better, but clamping is essential
+    // Apply clamp
     if (newX > maxX) newX = maxX;
     if (newX < minX) newX = minX;
     if (newY > maxY) newY = maxY;
@@ -164,7 +204,7 @@ const GridCell: React.FC<GridCellProps> = ({
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!isDragging || !photoData) return;
 
-      const { width: cellW, height: cellH } = getRenderedDimensions();
+      const { width: cellW, height: cellH } = getLocalDimensions();
       const imgW = photoData.nativeWidth;
       const imgH = photoData.nativeHeight;
       const scale = photoData.scale;
@@ -177,6 +217,7 @@ const GridCell: React.FC<GridCellProps> = ({
       const minY = cellH - (imgH * scale);
       const maxY = 0;
 
+      // Soft constraints or hard constraints? Hard for "No White Space"
       if (newX < minX) newX = minX;
       if (newX > maxX) newX = maxX;
       if (newY < minY) newY = minY;
@@ -215,6 +256,7 @@ const GridCell: React.FC<GridCellProps> = ({
         border: '0.2pt solid #D3D3D3' 
       }}
       onMouseDown={handleMouseDown}
+      onClick={handleClick}
     >
       <input
         type="file"

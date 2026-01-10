@@ -219,21 +219,29 @@ const App: React.FC = () => {
       />
 
       <main 
-        className="flex-1 relative flex flex-col items-center justify-center bg-gray-100/50"
+        className="flex-1 flex flex-col relative bg-gray-100/50"
         onClick={() => setSelectedCellId(null)}
       >
-        {selectedCellId && selectedPhoto?.imageUrl && (
-            <ZoomToolbar 
-                photoData={selectedPhoto} 
-                onUpdate={updatePhoto} 
-                cellDimensions={cellDim}
-                onReplace={() => handleManualPaste(selectedCellId)}
-            />
-        )}
+        {/* Fixed Top Toolbar Area */}
+        <div className="h-14 shrink-0 bg-white border-b border-gray-200 z-30 shadow-sm relative">
+            {selectedCellId && selectedPhoto?.imageUrl ? (
+                <ZoomToolbar 
+                    photoData={selectedPhoto} 
+                    onUpdate={updatePhoto} 
+                    cellDimensions={cellDim}
+                    onReplace={() => handleManualPaste(selectedCellId)}
+                />
+            ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm font-medium">
+                    选择图片以编辑属性
+                </div>
+            )}
+        </div>
 
+        {/* Scrollable Canvas Area */}
         <div 
             ref={canvasContainerRef}
-            className="w-full h-full overflow-auto flex items-center justify-center p-10 custom-scrollbar"
+            className="flex-1 overflow-auto flex items-center justify-center p-10 custom-scrollbar"
         >
           <Canvas 
             preset={currentPreset}
