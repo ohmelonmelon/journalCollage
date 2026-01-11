@@ -24,12 +24,15 @@ export const injectPrintStyles = (preset: PresetConfig) => {
       #printable-canvas {
         visibility: visible !important;
         position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        margin: 0;
-        padding: 0;
+        left: 0 !important;
+        top: 0 !important;
+        /* Reset any screen scaling to ensure 1:1 print size */
+        transform: none !important;
+        /* Ensure it takes its natural defined size (mm) and not the window size */
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
         overflow: hidden;
         box-shadow: none !important;
         background: white !important;
