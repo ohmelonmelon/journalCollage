@@ -279,7 +279,7 @@ const GridCell: React.FC<GridCellProps> = ({
           }}
         />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 transition-colors gap-2">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-300 transition-colors gap-2 no-print">
             <div className="flex gap-2">
                  {/* Swap order: Paste is primary default */}
                  <button 
